@@ -2,473 +2,758 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Chat IA — Página única (WebGPU/WASM)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Administración del Dinero – Nivel Intermedio</title>
   <style>
-    :root {
-      --bg: #0b0c10; --fg: #e6edf3; --muted: #9aa3ab; --accent: #6ab0ff; --panel: #0d1117; --border: #1e222a;
-      --ok: #2ecc71; --warn: #ffd166; --err: #ff6b6b;
+    :root{
+      --bg:#0f1115; --panel:#151923; --ink:#e8ecf1; --muted:#aab3c0; --brand:#5cc8ff; --accent:#ffd166; --ok:#7bd389;
+      --stroke:#1e2433; --stroke-2:#223049;
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: radial-gradient(1200px 600px at 70% -10%, #10131a, #0b0c10), var(--bg); color: var(--fg);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    /* Base móvil primero */
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      color:var(--ink);
+      background:linear-gradient(180deg,#0f1115 0%, #111828 100%);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Helvetica,Arial,sans-serif;
+      font-size:16px; line-height:1.5;
+      -webkit-text-size-adjust:100%;
+      text-rendering:optimizeLegibility;
     }
-    header { padding: 16px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(11,12,16,0.8); backdrop-filter: blur(6px); z-index: 10; }
-    h1 { font-size: 18px; margin: 0 0 4px 0; letter-spacing: 0.2px; }
-    .sub { color: var(--muted); font-size: 12px; }
-    .container { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
-    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
-    .panel { background: linear-gradient(180deg, #0f1219, #0d1117); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
-    label { display: block; font-size: 12px; color: var(--muted); margin-top: 8px; }
-    select, input[type="number"], input[type="text"], input[type="range"], textarea, button {
-      width: 100%; background: #0a0d13; color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 14px;
+    /* Tipos fluidos */
+    h1{font-weight:800; letter-spacing:.2px; margin:0 0 .4rem;
+       font-size:clamp(1.6rem, 4vw + .8rem, 2.2rem)}
+    h2{margin:0 0 .5rem; font-size:clamp(1.2rem, 2.2vw + .8rem, 1.6rem)}
+    h3{margin:1rem 0 .4rem; font-size:clamp(1.05rem, 1.2vw + .9rem, 1.25rem)}
+    p{margin:.4rem 0}
+    ul,ol{margin:.4rem 0 .8rem 1.1rem}
+    li{margin:.35rem 0}
+
+    /* Accesibilidad */
+    a{color:#d9e8ff; text-decoration:none}
+    a:focus-visible, button:focus-visible{outline:2px solid var(--brand); outline-offset:2px; border-radius:8px}
+    .skip{
+      position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;
     }
-    textarea { resize: vertical; min-height: 84px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .btn { cursor: pointer; border: 1px solid #263041; background: #121722; transition: 0.15s; }
-    .btn:hover { border-color: #3a4b66; }
-    .btn.primary { background: #122235; border-color: #2e5a96; }
-    .btn.danger { background: #201014; border-color: #5b1e2a; }
-    .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
-    .status.ok { color: var(--ok); } .status.warn { color: var(--warn); } .status.err { color: var(--err); }
-    .bar { height: 6px; background: #0a0d13; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 8px; }
-    .bar > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #8bc8ff); transition: width 0.1s linear; }
-    .chat { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 230px); min-height: 320px; overflow: auto; padding-right: 6px; }
-    .msg { display: grid; grid-template-columns: 36px 1fr; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: #0d1117; }
-    .role { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font-weight: 600; font-size: 12px; color: #0b0c10; user-select: none; }
-    .role.user { background: #6ab0ff; }
-    .role.ai { background: #2ecc71; }
-    .bubble { white-space: pre-wrap; line-height: 1.45; }
-    .footer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #0a0d13; border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; font-size: 12px; color: var(--muted); text-align: center; }
-    .muted { color: var(--muted); }
-    .small { font-size: 12px; }
-    .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .skip:focus{
+      position:fixed; left:12px; top:12px; width:auto; height:auto; padding:.5rem .75rem;
+      background:#121826; color:#e6f2ff; border:1px solid var(--stroke-2); border-radius:10px; z-index:1000;
+    }
+
+    header{
+      padding:28px 16px 22px;
+      text-align:center;
+      background:radial-gradient(900px 360px at 50% -20%, #1a2030, transparent);
+      border-bottom:1px solid #1f2738;
+    }
+    header p{max-width:62ch; margin:.25rem auto 0; color:var(--muted)}
+    .badges{margin-top:.75rem; display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+    .badge{
+      border:1px solid var(--stroke-2); background:#121724; color:#cfe7ff;
+      padding:6px 10px; border-radius:999px; font-size:12px; line-height:1
+    }
+    .hero-cta{margin-top:.9rem; display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+    .btn{
+      background:#1c273d; color:#e6f2ff; border:1px solid #2a3652;
+      padding:12px 14px; border-radius:12px; min-height:44px; display:inline-flex; align-items:center; justify-content:center
+    }
+    .btn.brand{background:#123654; border-color:#2a9df4}
+
+    nav{
+      position:sticky; top:0; z-index:20; background:#0f131e; border-bottom:1px solid #1f2738;
+      overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch
+    }
+    nav .rail{display:flex; gap:8px; padding:10px 12px}
+    nav a{
+      color:#e6f2ff; border:1px solid #233149; padding:10px 12px; border-radius:12px; font-size:14px;
+      display:inline-flex; align-items:center; min-height:44px
+    }
+    nav a.prio{border-color:#2f5bff40; background:#1a2340}
+
+    main{max-width:920px; margin:0 auto; padding:20px 12px 80px}
+    section.module{
+      background:var(--panel); border:1px solid var(--stroke); border-radius:16px; padding:16px; margin:14px 0 22px;
+      scroll-margin-top:72px
+    }
+    .meta{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px}
+    .meta .chip{
+      font-size:12px; color:#b8c4d6; border:1px dashed #2a3652; padding:4px 8px; border-radius:8px
+    }
+    .quote{border-left:3px solid #2a9df4; padding:10px 12px; background:#131a26; color:#cfe7ff; border-radius:6px; margin:10px 0}
+    .note{border:1px solid #2a3652; background:#121826; padding:12px; border-radius:10px; color:#d8e6ff; margin:12px 0}
+
+    .videos{display:grid; gap:10px; grid-template-columns:1fr; margin-top:8px}
+    @media (min-width:480px){ .videos{grid-template-columns:repeat(2,1fr)} }
+    @media (min-width:900px){ .videos{grid-template-columns:repeat(3,1fr)} }
+    .video-card{background:#0f1522; border:1px solid var(--stroke-2); border-radius:12px; overflow:hidden}
+    .video-card iframe{width:100%; aspect-ratio:16/9; display:block; background:#000}
+    .video-card .caption{padding:9px 10px; font-size:13px; color:#cfe7ff; border-top:1px solid var(--stroke-2)}
+
+    .grid-2{display:grid; gap:10px; grid-template-columns:1fr}
+    @media (min-width:700px){ .grid-2{grid-template-columns:repeat(2,1fr)} }
+
+    footer{max-width:920px; margin:0 auto 80px; padding:0 12px; color:#aab3c0}
+    .small{font-size:13px; color:#aab3c0}
+
+    /* Preferencias de movimiento reducido */
+    @media (prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto}
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Chat IA — cliente 100% navegador</h1>
-    <div class="sub">Una sola página. WebGPU si está disponible; WASM como respaldo. Sin servidores.</div>
+  <a href="#indice" class="skip">Saltar a navegación</a>
+
+  <header id="inicio">
+    <h1>Administración del Dinero – Nivel Intermedio</h1>
+    <p>
+      Curso práctico para jóvenes y adultos con ingresos irregulares en Venezuela (Urimare / Catia La Mar).
+      Enfoque en hábitos, toma de decisiones y resultados medibles. Ruta prioritaria: Fondo de emergencia → Flujo y presupuesto → Cumplimiento básico SENIAT.
+    </p>
+    <div class="badges">
+      <span class="badge">Práctico</span>
+      <span class="badge">Basado en hábitos</span>
+      <span class="badge">Decisiones con datos</span>
+      <span class="badge">Orientado a Venezuela</span>
+    </div>
+    <div class="hero-cta">
+      <a class="btn brand" href="#modulo-3">Comenzar por Módulo 3</a>
+      <a class="btn" href="#indice">Ver todos los módulos</a>
+    </div>
   </header>
 
-  <main class="container">
-    <section class="panel">
-      <div class="row">
-        <div>
-          <label>Modelo (ID del repositorio compatible)
-            <select id="model">
-              <option value="Xenova/phi-2">Xenova/phi-2 (1.3B, general)</option>
-            </select>
-          </label>
-        </div>
-        <div>
-          <label>Modelo personalizado (opcional)
-            <input type="text" id="custom_model" placeholder="p.ej. Xenova/NombreDelModelo" />
-          </label>
-        </div>
-      </div>
+  <nav>
+    <div class="rail" id="indice">
+      <a class="prio" href="#modulo-3">M3 Fondo de emergencia</a>
+      <a class="prio" href="#modulo-1">M1 Flujo y presupuesto</a>
+      <a class="prio" href="#modulo-7">M7 Impuestos (VE)</a>
+      <a href="#modulo-0">M0 Mentalidad y objetivos</a>
+      <a href="#modulo-2">M2 Deuda y score</a>
+      <a href="#modulo-4">M4 Inversión: bases</a>
+      <a href="#modulo-5">M5 Activos e intermediarios</a>
+      <a href="#modulo-6">M6 Plan financiero personal</a>
+      <a href="#modulo-8">M8 Herramientas y automatización</a>
+    </div>
+  </nav>
 
-      <div class="row">
-        <div>
-          <label>Backend
-            <select id="backend">
-              <option value="auto">Auto (recomendado)</option>
-              <option value="webgpu">WebGPU</option>
-              <option value="wasm">WASM</option>
-            </select>
-          </label>
-        </div>
-        <div>
-          <label>Contexto máx. (mensajes)
-            <input type="number" id="max_history" min="2" max="32" value="8" />
-          </label>
-        </div>
-      </div>
-
-      <label>Rol del sistema (contexto)
-        <textarea id="system">Eres un asistente útil, directo y claro. Respondes en español, con pasos concretos y código cuando sea necesario.</textarea>
-      </label>
-
-      <div class="row">
-        <div>
-          <label>Temperatura <span id="temp_val" class="muted small">0.7</span>
-            <input type="range" min="0" max="2" step="0.05" id="temperature" value="0.7" />
-          </label>
-        </div>
-        <div>
-          <label>Top‑p <span id="topp_val" class="muted small">0.9</span>
-            <input type="range" min="0" max="1" step="0.01" id="top_p" value="0.9" />
-          </label>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Máx. tokens de respuesta
-            <input type="number" id="max_tokens" min="16" max="1024" value="256" />
-          </label>
-        </div>
-        <div class="split">
-          <button class="btn" id="clear_chat" style="margin-top: 30px;">Limpiar chat</button>
-          <button class="btn" id="clear_cache" style="margin-top: 30px;">Borrar caché</button>
-        </div>
-      </div>
-
-      <div class="status" id="status">Listo.</div>
-      <div class="bar"><i id="progress"></i></div>
-      <div class="hint">Primera carga: descarga y compila el modelo. Luego será más rápido por la caché local.</div>
+  <main>
+    <section class="note">
+      <strong>Nota práctica:</strong> por la inestabilidad y la irregularidad de ingresos en Venezuela, prioriza primero el Módulo 3 (fondo de emergencia), luego el Módulo 1 (flujo/presupuesto) y el Módulo 7 (cumplimiento básico). Al diseñar tu IPS (Módulo 4), considera la diversificación por moneda.
     </section>
 
-    <section class="panel">
-      <div id="chat" class="chat" aria-live="polite"></div>
-      <div class="footer">
-        <textarea id="prompt" placeholder="Escribe tu mensaje y presiona Enviar (Ctrl/⌘+Enter)"></textarea>
-        <div style="display:grid; gap:10px;">
-          <button class="btn primary" id="send">Enviar</button>
-          <button class="btn danger" id="stop">Detener</button>
-          <div class="kbd">Ctrl/⌘+Enter para enviar</div>
+    <!-- Módulo 3 -->
+    <section id="modulo-3" class="module">
+      <h2>🛡️ Módulo 3: Fondo de emergencia y seguros</h2>
+      <div class="meta">
+        <span class="chip">Objetivo: 3–6 meses (o más con ingresos volátiles)</span>
+        <span class="chip">Liquidez y bajo riesgo</span>
+      </div>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Calcular:</strong> meta (meses de gastos).</li>
+        <li><strong>Elegir:</strong> dónde guardar y cómo automatizar aportes.</li>
+        <li><strong>Diferenciar:</strong> emergencias reales vs. gastos previsibles.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Fondo de emergencia:</strong> red de seguridad para imprevistos; se recomienda 3–6 meses (más si ingresos volátiles) y colocarlo en instrumentos líquidos de bajo riesgo.</li>
+        <li><strong>Contexto Venezuela:</strong> por inestabilidad e ingresos irregulares, el fondo es esencial; algunas personas resguardan divisas fuera del sistema bancario por accesibilidad y preservación.</li>
+      </ul>
+      <div class="quote">Definir qué es emergencia, mantenerlo separado del ahorro para metas y reponerlo tras su uso son claves de disciplina financiera.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Cálculo (15 min):</strong> gastos esenciales x meses objetivo.</li>
+        <li><strong>Setup (20 min):</strong> cuenta separada + transferencia automática (día de cobro).</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>El fondo es para vacaciones si falta dinero. — <strong>Respuesta:</strong> F</li>
+        <li>3–6 meses es guía general; puede aumentar según volatilidad. — <strong>Respuesta:</strong> V</li>
+        <li>Debe estar en activos de alta liquidez y bajo riesgo. — <strong>Respuesta:</strong> V</li>
+        <li>Si lo usas, no es necesario reponerlo. — <strong>Respuesta:</strong> F</li>
+        <li>En contextos inestables, el fondo es menos importante. — <strong>Respuesta:</strong> F</li>
+        <li>Gastos médicos imprevistos son uso válido. — <strong>Respuesta:</strong> V</li>
+        <li>Es parte del portafolio de largo plazo. — <strong>Respuesta:</strong> F</li>
+        <li>Automatizar aportes acelera su construcción. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/gho246_2EuA?rel=0"
+                  title="Fondo de emergencia: cuánto y dónde" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">El Cerebro del Inversor — Fondo de emergencia: cuánto y dónde</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/5A1C0X6hJR4?rel=0"
+                  title="Liquidez y preservación del capital" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Value School — Liquidez y preservación del capital</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/49HUroxXlaA?rel=0"
+                  title="Prioriza tu colchón financiero" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Aprende Finanzas YA — Prioriza tu colchón financiero</div>
         </div>
       </div>
     </section>
+
+    <!-- Módulo 1 -->
+    <section id="modulo-1" class="module">
+      <h2>📊 Módulo 1: Flujo de caja y presupuesto</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Distinguir:</strong> presupuesto (plan) vs. flujo de caja (real).</li>
+        <li><strong>Construir:</strong> presupuesto mensual y seguimiento 30 días.</li>
+        <li><strong>Ajustar:</strong> categorías y techos de gasto.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Presupuesto:</strong> plan de ingresos y gastos que guía decisiones y evita déficit; componentes: ingresos, gastos fijos/variables, ahorro e inversión; revisar y ajustar mensualmente.</li>
+        <li><strong>Flujo de caja:</strong> registro de entradas y salidas reales; mantenerlo positivo asegura liquidez para gastos y emergencias.</li>
+      </ul>
+      <div class="quote">Apps y hojas de cálculo facilitan el seguimiento y análisis; la constancia en ahorro y revisión mensual mejora estabilidad financiera.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Mapa de gastos (30 min):</strong> lista categorías fijas/variables; define techos.</li>
+        <li><strong>Tablero 30 días (10 min de setup):</strong> registra diario e indicadores: tasa de ahorro, desvíos, saldo proyectado.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>El flujo de caja es un plan y el presupuesto un registro. — <strong>Respuesta:</strong> F</li>
+        <li>Gastos variables incluyen ocio y transporte extra. — <strong>Respuesta:</strong> V</li>
+        <li>Monitorear y ajustar es parte del presupuesto eficaz. — <strong>Respuesta:</strong> V</li>
+        <li>Un flujo de caja positivo garantiza liquidez. — <strong>Respuesta:</strong> V</li>
+        <li>No se debe incluir ahorro en el presupuesto. — <strong>Respuesta:</strong> F</li>
+        <li>La estacionalidad afecta el presupuesto. — <strong>Respuesta:</strong> V</li>
+        <li>El presupuesto elimina toda incertidumbre. — <strong>Respuesta:</strong> F</li>
+        <li>Hojas de cálculo son útiles para seguimiento. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/kmi6EugSR0E?rel=0"
+                  title="Cómo hacer tu presupuesto en 30 minutos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">El Club de las Finanzas Personales — Presupuesto en 30 minutos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/YBCfKPn22Ig?rel=0"
+                  title="Flujo de caja para no contadores" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Santiago Salom — Flujo de caja</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/4trjnw4tI5A?rel=0"
+                  title="Variables vs fijos: optimiza tus gastos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Balio — Variables vs fijos</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 7 -->
+    <section id="modulo-7" class="module">
+      <h2>🧾 Módulo 7: Impuestos y cumplimiento (introducción, Venezuela)</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Conocer:</strong> instituciones y portales clave.</li>
+        <li><strong>Identificar:</strong> obligaciones básicas y calendario.</li>
+        <li><strong>Adoptar:</strong> hábitos de registro y resguardo documental.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>SENIAT:</strong> portal oficial para RIF, declaraciones (ISLR, IVA, etc.), instructivos, calendarios y providencias vigentes.</li>
+        <li><strong>Cumplimiento tributario:</strong> normativas cambian y demandan precisión y transparencia; apoyo profesional puede optimizar presentación y reducir riesgos.</li>
+      </ul>
+      <div class="quote">Llevar trazabilidad de ingresos/gastos y conservar soportes facilita declaraciones y evita sanciones; consulta el calendario vigente y guías del portal oficial.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Checklist documental (20 min):</strong> RIF, contratos, facturas, soportes de gasto, registros de ingresos.</li>
+        <li><strong>Calendario (15 min):</strong> fechas clave y recordatorios trimestrales.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>El RIF es irrelevante para personas naturales. — <strong>Respuesta:</strong> F</li>
+        <li>El portal del SENIAT centraliza trámites tributarios. — <strong>Respuesta:</strong> V</li>
+        <li>Las reglas fiscales son estáticas año a año. — <strong>Respuesta:</strong> F</li>
+        <li>La trazabilidad reduce riesgo de sanciones. — <strong>Respuesta:</strong> V</li>
+        <li>No es necesario guardar facturas. — <strong>Respuesta:</strong> F</li>
+        <li>Profesionales tributarios pueden apoyar cumplimiento. — <strong>Respuesta:</strong> V</li>
+        <li>Ignorar el calendario no tiene consecuencias. — <strong>Respuesta:</strong> F</li>
+        <li>Las guías oficiales orientan el proceso. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/6YxFoB5YNDQ?rel=0"
+                  title="Cómo sacar el RIF" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">SENIAT / Contadores VE — Cómo sacar el RIF</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/rA4GMAN8tUA?rel=0"
+                  title="Tendencias fiscales VE" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Forvis Mazars — Tendencias fiscales VE</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/toeTk5xBU4g?rel=0"
+                  title="Buenas prácticas de cumplimiento" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">EY Latinoamérica — Buenas prácticas de cumplimiento</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 0 -->
+    <section id="modulo-0" class="module">
+      <h2>🧠 Módulo 0: Mentalidad financiera y objetivos</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Comprender:</strong> cómo las creencias influyen en decisiones de dinero.</li>
+        <li><strong>Definir:</strong> 3 metas SMART (3, 12 y 36 meses).</li>
+        <li><strong>Alinear:</strong> hábitos con propósito personal.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Mentalidad financiera:</strong> pensamientos y creencias sobre el dinero moldean hábitos y resultados; se puede entrenar y mejorar con educación y práctica.</li>
+        <li><strong>Tipos de mentalidad:</strong> patrones potenciadores (abundancia, responsabilidad, visión a largo plazo) vs. limitantes (escasez, miedo, evitación) y su efecto en estrés y decisiones.</li>
+      </ul>
+      <div class="quote">La mentalidad financiera es dinámica y afecta la planificación, el ahorro y la toma de riesgos; trabajarla reduce estrés y mejora claridad de objetivos.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Diario de creencias (20 min):</strong> lista 5 creencias; reclasifícalas; reescribe 3 limitantes en versiones accionables.</li>
+        <li><strong>Metas SMART (30 min):</strong> redacta 3 metas (3, 12, 36 meses) con monto, fecha y métrica.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>La mentalidad financiera es estática. — <strong>Respuesta:</strong> F</li>
+        <li>Una creencia limitante puede afectar la tasa de ahorro. — <strong>Respuesta:</strong> V</li>
+        <li>Definir objetivos SMART ayuda a priorizar recursos. — <strong>Respuesta:</strong> V</li>
+        <li>El estrés financiero no se relaciona con mentalidad. — <strong>Respuesta:</strong> F</li>
+        <li>Reescribir creencias es una técnica de intervención cognitiva. — <strong>Respuesta:</strong> V</li>
+        <li>Propósito y metas no deben mezclarse con finanzas. — <strong>Respuesta:</strong> F</li>
+        <li>La mentalidad de abundancia implica disciplina y responsabilidad. — <strong>Respuesta:</strong> V</li>
+        <li>La educación financiera no cambia hábitos. — <strong>Respuesta:</strong> F</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/wJBUsb-FBy0?rel=0"
+                  title="Cambia tu relación con el dinero" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Moris Dieck — Cambia tu relación con el dinero</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/_FkLdIZUKZE?rel=0"
+                  title="Mentalidad del inversor a largo plazo" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Value School — Mentalidad del inversor a largo plazo</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/sIF1QZyjnVY?rel=0"
+                  title="Hábitos financieros que sí funcionan" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Balio — Hábitos financieros que sí funcionan</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 2 -->
+    <section id="modulo-2" class="module">
+      <h2>💳 Módulo 2: Deuda y score de crédito</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Entender:</strong> factores del score y su impacto.</li>
+        <li><strong>Aplicar:</strong> métodos avalancha/bola de nieve.</li>
+        <li><strong>Diseñar:</strong> plan de pago con fecha deuda cero.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Score crediticio:</strong> número (aprox. 300–850) que refleja solvencia; factores típicos y pesos orientativos (historial de pagos, endeudamiento, antigüedad, nuevos créditos, mezcla) según modelos como FICO/VantageScore.</li>
+        <li><strong>Uso del score:</strong> determina acceso a crédito y condiciones (tasas, montos); distintos países/entidades tienen sistemas locales (Equifax/TransUnion, etc.).</li>
+      </ul>
+      <div class="quote">Conocer el score y sus factores permite estrategias para mejorarlo: pagar a tiempo, bajar utilización de crédito, mantener antigüedad y evitar aplicaciones frecuentes.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Inventario de deudas (20 min):</strong> saldo, TAE/TEM, cuota, fecha, garantía.</li>
+        <li><strong>Plan de pago (40 min):</strong> avalancha (por tasa) o bola de nieve (por saldo); calcula ahorro de intereses.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>El historial de pagos suele ser el factor de mayor peso. — <strong>Respuesta:</strong> V</li>
+        <li>Cerrar tarjetas antiguas mejora el score. — <strong>Respuesta:</strong> F</li>
+        <li>La utilización de crédito afecta el score. — <strong>Respuesta:</strong> V</li>
+        <li>Pedir varios créditos en poco tiempo no influye. — <strong>Respuesta:</strong> F</li>
+        <li>La mezcla de tipos de crédito puede sumar puntos. — <strong>Respuesta:</strong> V</li>
+        <li>La bola de nieve prioriza la tasa más alta. — <strong>Respuesta:</strong> F</li>
+        <li>La avalancha minimiza intereses totales. — <strong>Respuesta:</strong> V</li>
+        <li>El score no afecta tasas de interés. — <strong>Respuesta:</strong> F</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/yUK-UAmEDLc?rel=0"
+                  title="Cómo salir de deudas rápido" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Moris Dieck — Cómo salir de deudas rápido</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/5_s7M859KCk?rel=0"
+                  title="Psicología de la deuda" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Jürgen Klaric — Psicología de la deuda</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/Xn2VRJN6p8A?rel=0"
+                  title="Score de crédito explicado" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Finance Gear (ES) — Score de crédito explicado</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 4 -->
+    <section id="modulo-4" class="module">
+      <h2>📈 Módulo 4: Inversión — bases y métricas</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Comprender:</strong> relación riesgo–rentabilidad–liquidez.</li>
+        <li><strong>Definir:</strong> asignación objetivo y reglas de rebalanceo.</li>
+        <li><strong>Redactar:</strong> un IPS personal.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Tríada de los activos:</strong> liquidez, riesgo, rentabilidad.</li>
+        <li><strong>Asignación y diversificación:</strong> distribuir por clases de activos, sectores y monedas; ajustar con rebalanceo periódico.</li>
+      </ul>
+      <div class="quote">Los agentes ordenan carteras en función de liquidez, riesgo y rentabilidad; mayores rendimientos tienden a implicar menor liquidez y/o mayor riesgo.</div>
+      <div class="note"><strong>Fórmulas útiles:</strong> A = P(1 + r/n)^{n t} &nbsp; | &nbsp; CAGR = (FV/PV)^{1/n} - 1</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>IPS (45 min):</strong> objetivo, horizonte, aportes, tolerancia, asignación, reequilibrio, límites de costos.</li>
+        <li><strong>Simulación (30 min):</strong> desviación ±5% por clase y operaciones de rebalanceo.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>Mayor rentabilidad siempre implica menor riesgo. — <strong>Respuesta:</strong> F</li>
+        <li>La liquidez mide facilidad y certeza de realización sin pérdidas. — <strong>Respuesta:</strong> V</li>
+        <li>Diversificar reduce riesgo específico. — <strong>Respuesta:</strong> V</li>
+        <li>El rebalanceo busca volver a la asignación objetivo. — <strong>Respuesta:</strong> V</li>
+        <li>El interés simple crece más que el compuesto. — <strong>Respuesta:</strong> F</li>
+        <li>El IPS fija reglas antes de invertir. — <strong>Respuesta:</strong> V</li>
+        <li>La correlación no afecta volatilidad de cartera. — <strong>Respuesta:</strong> F</li>
+        <li>El horizonte influye en la asignación. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/w8zECqnezRU?rel=0"
+                  title="Diversificación y asignación de activos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Value School — Diversificación y asignación de activos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/Uh4BZHacm7g?rel=0"
+                  title="Riesgo vs. volatilidad" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">El Arte de Invertir — Riesgo vs. volatilidad</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/wFlBrYa4nrw?rel=0"
+                  title="Asset Allocation Basics" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">The Plain Bagel — Asset Allocation Basics (subtítulos)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 5 -->
+    <section id="modulo-5" class="module">
+      <h2>💼 Módulo 5: Activos e intermediarios</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Identificar:</strong> clases de activos (renta fija/variable, derivados, alternativos).</li>
+        <li><strong>Entender:</strong> función de bancos, brokers, gestoras, aseguradoras.</li>
+        <li><strong>Comparar:</strong> liquidez, riesgos y horizontes.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Sistema financiero:</strong> canaliza ahorro de superávit a déficit mediante activos, intermediarios y mercados.</li>
+        <li><strong>Activos financieros:</strong> renta fija (bonos, pagarés), renta variable (acciones), derivados (futuros, opciones).</li>
+        <li><strong>Intermediarios y mercados:</strong> conectan oferentes y demandantes, dan liquidez, descubren precios y reducen costos de transacción.</li>
+      </ul>
+      <div class="quote">Elegir vehículo e intermediario adecuado al objetivo y horizonte reduce costos y fricciones, mejorando la experiencia de inversión.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Matriz comparativa (30 min):</strong> objetivos (colchón, mediano, largo) vs. activos (liquidez, riesgo, moneda).</li>
+        <li><strong>Costeo (20 min):</strong> comisiones (compra/venta, custodia, TER, spreads) por vehículo.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>Renta fija define pagos de antemano. — <strong>Respuesta:</strong> V</li>
+        <li>Acciones son renta fija. — <strong>Respuesta:</strong> F</li>
+        <li>Los derivados dependen de un subyacente. — <strong>Respuesta:</strong> V</li>
+        <li>Los mercados dan liquidez y descubren precios. — <strong>Respuesta:</strong> V</li>
+        <li>Los intermediarios siempre emiten activos primarios. — <strong>Respuesta:</strong> F</li>
+        <li>Mayor liquidez suele implicar menor rentabilidad esperada, ceteris paribus. — <strong>Respuesta:</strong> V</li>
+        <li>Un broker es un intermediario financiero. — <strong>Respuesta:</strong> V</li>
+        <li>No hay diferencia entre activos negociables y no negociables. — <strong>Respuesta:</strong> F</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/M2R_VX3rbpA?rel=0"
+                  title="Tipos de activos y para qué sirven" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Value School — Tipos de activos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/v8swPugng_U?rel=0"
+                  title="Derivados para principiantes" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">iBroker (ES) — Derivados para principiantes</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/zguM6YxtWJk?rel=0"
+                  title="Fondos vs. ETFs" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Balio — Fondos vs. ETFs</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 6 -->
+    <section id="modulo-6" class="module">
+      <h2>📅 Módulo 6: Plan financiero personal</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Evaluar:</strong> situación actual (ingresos, gastos, activos, pasivos).</li>
+        <li><strong>Diseñar:</strong> plan a 12 meses con escenarios.</li>
+        <li><strong>Implementar:</strong> hábitos, automatizaciones y revisiones.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Plan financiero:</strong> organizar dinero, alinear metas, reducir deudas, gestionar riesgos y maximizar ahorro/inversión; requiere revisión periódica y personalización.</li>
+        <li><strong>Pasos clave:</strong> diagnóstico, objetivos, presupuesto, estrategia de deudas, ahorro/inversión, control y ajuste.</li>
+        <li><strong>Enfoque educativo:</strong> conecta metas de vida con administración de recursos, integrando teoría y práctica.</li>
+      </ul>
+      <div class="quote">Calcular patrimonio neto (activos − pasivos), identificar excedentes/déficits y hábitos de consumo es base del diseño del plan.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Estado personal (30 min):</strong> inventario de activos/pasivos; patrimonio neto.</li>
+        <li><strong>Plan 12 meses (45 min):</strong> base, optimista y estresado; gatillos de ajuste.</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>Un plan financiero no debe actualizarse. — <strong>Respuesta:</strong> F</li>
+        <li>Patrimonio neto = activos − pasivos. — <strong>Respuesta:</strong> V</li>
+        <li>El plan integra deudas, ahorro e inversión. — <strong>Respuesta:</strong> V</li>
+        <li>Los escenarios no aportan al plan. — <strong>Respuesta:</strong> F</li>
+        <li>La revisión periódica mejora decisiones. — <strong>Respuesta:</strong> V</li>
+        <li>Sin diagnóstico, el plan sigue siendo sólido. — <strong>Respuesta:</strong> F</li>
+        <li>Las herramientas digitales facilitan el control. — <strong>Respuesta:</strong> V</li>
+        <li>Los objetivos deben ser medibles y con plazo. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/WF6qLnuh4EA?rel=0"
+                  title="Tu plan financiero en 7 pasos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Moris Dieck — Tu plan financiero en 7 pasos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/FRcweJKAlHc?rel=0"
+                  title="Cómo definir metas financieras" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Balio — Cómo definir metas financieras</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/nRatTzECmq8?rel=0"
+                  title="Planificación para largo plazo" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Value School — Planificación para largo plazo</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Módulo 8 -->
+    <section id="modulo-8" class="module">
+      <h2>⚙️ Módulo 8: Herramientas y automatización</h2>
+
+      <h3>Objetivos</h3>
+      <ul>
+        <li><strong>Mapear:</strong> procesos repetitivos a automatizar.</li>
+        <li><strong>Seleccionar:</strong> herramientas para presupuesto, conciliación, recordatorios y reportes.</li>
+        <li><strong>Implementar:</strong> flujos y reglas simples.</li>
+      </ul>
+
+      <h3>Contenido clave</h3>
+      <ul>
+        <li><strong>Automatización financiera:</strong> software para facturación, nómina, cuentas por pagar/cobrar, reportes, presupuestos y cumplimiento.</li>
+        <li><strong>Beneficios y aplicaciones:</strong> control en tiempo real, conciliación bancaria, recordatorios, integración de sistemas.</li>
+      </ul>
+      <div class="quote">Las áreas con mayor automatización son finanzas/contabilidad; buenas prácticas incluyen integrar fuentes de datos, definir reglas claras y monitorear resultados.</div>
+
+      <h3>Actividad práctica</h3>
+      <ul>
+        <li><strong>Mapa de flujos (25 min):</strong> tareas manuales (registro, conciliación, alertas).</li>
+        <li><strong>Setup (30 min):</strong> reglas de etiquetado, recordatorios de pagos, tablero de métricas (ahorro, desvíos, aportes).</li>
+      </ul>
+
+      <h3>Cuestionario (V/F)</h3>
+      <ol>
+        <li>Automatizar aumenta errores humanos. — <strong>Respuesta:</strong> F</li>
+        <li>La conciliación puede automatizarse. — <strong>Respuesta:</strong> V</li>
+        <li>Reportes en tiempo real apoyan decisiones. — <strong>Respuesta:</strong> V</li>
+        <li>No conviene integrar fuentes de datos. — <strong>Respuesta:</strong> F</li>
+        <li>Recordatorios de cobros/pagos son parte del flujo. — <strong>Respuesta:</strong> V</li>
+        <li>La automatización es solo para grandes empresas. — <strong>Respuesta:</strong> F</li>
+        <li>Definir reglas es clave para buenos resultados. — <strong>Respuesta:</strong> V</li>
+        <li>Presupuestos y previsiones pueden apoyarse con software. — <strong>Respuesta:</strong> V</li>
+      </ol>
+
+      <h3>Videos sugeridos</h3>
+      <div class="videos">
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/P_6NFQ2vo5c?rel=0"
+                  title="Automatización financiera para pymes" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Xepelin — Automatización financiera para pymes</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/EmcmapcBFAA?rel=0"
+                  title="Automatiza reportes e ingresos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Stripe — Automatiza reportes e ingresos</div>
+        </div>
+        <!-- Serie Holded / ContaSimple -->
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/p51NQLcwyxg?rel=0"
+                  title="Conciliaciones Bancarias ERP HOLDED" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — Conciliaciones Bancarias</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/il1yBQbvyBI?rel=0"
+                  title="Concilia tu cuenta contable en segundos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — Concilia en segundos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/KuHanhe8Wao?rel=0"
+                  title="Conecta tus bancos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — Conecta tus bancos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/3ufAHJ_rRPU?rel=0"
+                  title="Conciliación: paso a paso" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — Paso a paso</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/u_jopMSEX7w?rel=0"
+                  title="Conciliación en 3 pasos" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — En 3 pasos</div>
+        </div>
+        <div class="video-card">
+          <iframe src="https://www.youtube.com/embed/MxzfY5JF3JA?rel=0"
+                  title="Automatizar Holded" loading="lazy" frameborder="0" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+          <div class="caption">Holded — Automatizar y simplificar</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="grid-2">
+        <div class="note">
+          <strong>Consejo de ruta:</strong> completa primero M3 → M1 → M7. Luego avanza por el resto según tus metas y tiempo disponible.
+        </div>
+        <div class="note">
+          <strong>Contexto VE:</strong> registra gastos en efectivo a diario, resguarda facturas/soportes, y define tu IPS con diversificación por moneda prudente.
+        </div>
+      </div>
+      <p class="small" style="margin-top:10px">Este contenido integra teoría, actividades prácticas, cuestionarios (V/F) y videos sugeridos por módulo, exactamente como en tu documento maestro.</p>
+    </footer>
   </main>
-
-  <script type="module">
-    // ------------------------------
-    // Estado y utilidades de la UI
-    // ------------------------------
-    const els = {
-      model: document.getElementById('model'),
-      custom_model: document.getElementById('custom_model'),
-      backend: document.getElementById('backend'),
-      system: document.getElementById('system'),
-      temperature: document.getElementById('temperature'),
-      top_p: document.getElementById('top_p'),
-      temp_val: document.getElementById('temp_val'),
-      topp_val: document.getElementById('topp_val'),
-      max_tokens: document.getElementById('max_tokens'),
-      max_history: document.getElementById('max_history'),
-      status: document.getElementById('status'),
-      progress: document.getElementById('progress'),
-      chat: document.getElementById('chat'),
-      prompt: document.getElementById('prompt'),
-      send: document.getElementById('send'),
-      stop: document.getElementById('stop'),
-      clear_chat: document.getElementById('clear_chat'),
-      clear_cache: document.getElementById('clear_cache'),
-    };
-    const SETTINGS_KEY = 'webllm-settings-v2';
-    const HISTORY_KEY = 'webllm-history-v2';
-
-    function setStatus(text, kind = '') {
-      els.status.classList.remove('ok', 'warn', 'err');
-      if (kind) els.status.classList.add(kind);
-      els.status.textContent = text;
-    }
-    function setProgress(pct) {
-      const v = Math.max(0, Math.min(100, pct));
-      els.progress.style.width = v + '%';
-    }
-    function scrollChat() {
-      els.chat.scrollTop = els.chat.scrollHeight;
-    }
-
-    function addMessage(role, content) {
-      const wrap = document.createElement('div');
-      wrap.className = 'msg';
-      wrap.dataset.role = role;
-      const badge = document.createElement('div');
-      badge.className = 'role ' + (role === 'user' ? 'user' : 'ai');
-      badge.textContent = role === 'user' ? 'Tú' : 'IA';
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = content;
-      wrap.appendChild(badge);
-      wrap.appendChild(bubble);
-      els.chat.appendChild(wrap);
-      scrollChat();
-      return bubble;
-    }
-
-    function saveHistory() {
-      const msgs = [...document.querySelectorAll('.msg')].map(node => {
-        return { role: node.dataset.role, content: node.querySelector('.bubble').textContent };
-      });
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(msgs));
-    }
-    function loadHistory() {
-      const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-      for (const m of h) addMessage(m.role, m.content);
-      return h;
-    }
-
-    function saveSettings() {
-      const s = {
-        model: els.model.value,
-        custom_model: els.custom_model.value,
-        backend: els.backend.value,
-        system: els.system.value,
-        temperature: els.temperature.value,
-        top_p: els.top_p.value,
-        max_tokens: els.max_tokens.value,
-        max_history: els.max_history.value,
-      };
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-    }
-    function loadSettings() {
-      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-      for (const [k, v] of Object.entries(s)) {
-        if (k in els && v != null) els[k].value = v;
-      }
-      els.temp_val.textContent = els.temperature.value;
-      els.topp_val.textContent = els.top_p.value;
-    }
-
-    // -----------------------------------------
-    // Carga de runtime y modelo (Transformers)
-    // -----------------------------------------
-    let pipeline = null;
-    let generator = null;
-    let currentModelId = null;
-    let abortController = null;
-    let busy = false;
-
-    function hasWebGPU() {
-      return !!navigator.gpu;
-    }
-
-    function pickBackend() {
-      const pref = els.backend.value;
-      if (pref === 'webgpu') return 'webgpu';
-      if (pref === 'wasm') return 'wasm';
-      return hasWebGPU() ? 'webgpu' : 'wasm';
-    }
-
-    async function loadRuntime() {
-      if (pipeline) return;
-      setStatus('Cargando runtime…');
-      const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@3.0.0/dist/transformers.min.js');
-      pipeline = mod.pipeline;
-      setStatus('Runtime listo.', 'ok');
-    }
-
-    function resolvedModelId() {
-      const custom = els.custom_model.value.trim();
-      return custom || els.model.value;
-    }
-
-    async function loadModelIfNeeded() {
-      const modelId = resolvedModelId();
-      if (generator && currentModelId === modelId) return;
-
-      await loadRuntime();
-      setProgress(3);
-      setStatus(`Preparando modelo: ${modelId}`);
-
-      const backend = pickBackend();
-      // Nota: dejamos que la librería elija dtype óptimo. No forzamos cuantización para evitar incompatibilidades.
-      generator = await pipeline('text-generation', modelId, {
-        device: backend === 'webgpu' ? 'webgpu' : 'wasm',
-        progress_callback: (p) => {
-          if (p?.total) setProgress(5 + 90 * (p.loaded / p.total));
-          if (p?.status) setStatus(`${p.status}…`);
-        }
-      });
-
-      currentModelId = modelId;
-      setProgress(100);
-      setTimeout(() => setProgress(0), 600);
-      setStatus('Modelo listo.', 'ok');
-    }
-
-    // -------------------------------
-    // Construcción de prompt y chat
-    // -------------------------------
-    function buildPrompt(system, history, userMsg) {
-      const sys = system.trim() ? `<<SYSTEM>>\n${system.trim()}\n<</SYSTEM>>\n\n` : '';
-      const maxH = parseInt(els.max_history.value, 10);
-      const recent = history.slice(-maxH);
-      let conv = sys;
-      for (const m of recent) {
-        if (m.role === 'user') conv += `Usuario: ${m.content}\n`;
-        if (m.role === 'assistant') conv += `Asistente: ${m.content}\n`;
-      }
-      conv += `Usuario: ${userMsg}\nAsistente:`;
-      return conv;
-    }
-
-    // -------------------------------
-    // Generación con streaming
-    // -------------------------------
-    async function generate(userText) {
-      await loadModelIfNeeded();
-      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-      const prompt = buildPrompt(els.system.value, history, userText);
-
-      abortController = new AbortController();
-      busy = true;
-      els.send.disabled = true;
-      els.stop.disabled = false;
-
-      let buffer = '';
-      const aiBubble = addMessage('assistant', '');
-
-      try {
-        const out = await generator(prompt, {
-          max_new_tokens: parseInt(els.max_tokens.value, 10),
-          temperature: parseFloat(els.temperature.value),
-          top_p: parseFloat(els.top_p.value),
-          do_sample: true,
-          return_full_text: false,
-          repetition_penalty: 1.1,
-          callback_function: (data) => {
-            if (abortController?.signal?.aborted) return;
-            if (data?.token?.text != null) {
-              buffer += data.token.text;
-              aiBubble.textContent = buffer;
-              scrollChat();
-            }
-          },
-          signal: abortController.signal,
-        });
-
-        // Si por cualquier motivo no hubo streaming, usar salida final
-        if (!buffer && Array.isArray(out) && out[0]?.generated_text) {
-          buffer = out[0].generated_text;
-          aiBubble.textContent = buffer;
-        }
-
-        setStatus('Listo.', 'ok');
-      } catch (e) {
-        if (abortController?.signal?.aborted) {
-          aiBubble.textContent = (buffer || '').trim();
-          setStatus('Generación detenida.', 'warn');
-        } else {
-          console.error(e);
-          aiBubble.textContent = (buffer ? buffer + '\n\n' : '') + '⚠️ Ocurrió un error durante la generación.';
-          setStatus('Error en generación.', 'err');
-        }
-      } finally {
-        abortController = null;
-        busy = false;
-        els.send.disabled = false;
-        els.stop.disabled = true;
-        saveHistory();
-      }
-    }
-
-    // -------------------------------
-    // Eventos de la interfaz
-    // -------------------------------
-    function bindUI() {
-      // Sincronizar valores visibles
-      els.temperature.addEventListener('input', () => { els.temp_val.textContent = els.temperature.value; saveSettings(); });
-      els.top_p.addEventListener('input', () => { els.topp_val.textContent = els.top_p.value; saveSettings(); });
-
-      // Ajustes persistentes
-      ['model','custom_model','backend','system','max_tokens','max_history'].forEach(id => {
-        els[id].addEventListener('change', saveSettings);
-        els[id].addEventListener('input', saveSettings);
-      });
-
-      // Cambio de modelo/backend fuerza recarga en la próxima generación
-      const forceReload = () => {
-        generator = null;
-        currentModelId = null;
-        setStatus('El modelo se recargará al próximo mensaje.');
-      };
-      els.model.addEventListener('change', forceReload);
-      els.custom_model.addEventListener('change', forceReload);
-      els.backend.addEventListener('change', forceReload);
-
-      // Enviar
-      els.send.addEventListener('click', async () => {
-        const text = els.prompt.value.trim();
-        if (!text || busy) return;
-        addMessage('user', text);
-        els.prompt.value = '';
-        saveHistory();
-        await generate(text);
-      });
-      els.prompt.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-          e.preventDefault();
-          els.send.click();
-        }
-      });
-
-      // Detener
-      els.stop.addEventListener('click', () => {
-        if (abortController) abortController.abort();
-      });
-      els.stop.disabled = true;
-
-      // Limpiar chat
-      els.clear_chat.addEventListener('click', () => {
-        if (busy) return;
-        els.chat.innerHTML = '';
-        localStorage.removeItem(HISTORY_KEY);
-        setStatus('Chat reiniciado.', 'ok');
-      });
-
-      // Borrar caché de modelos
-      els.clear_cache.addEventListener('click', async () => {
-        if (busy) return;
-        setStatus('Eliminando caché local…');
-        try {
-          // Caches del Service Worker (si las hubiera)
-          if ('caches' in window) {
-            const keys = await caches.keys();
-            await Promise.all(keys.map(k => caches.delete(k)));
-          }
-          // IndexedDB usada por la librería
-          await new Promise((resolve) => {
-            let pending = 2;
-            const done = () => (--pending === 0) && resolve();
-            const del = (name) => {
-              const req = indexedDB.deleteDatabase(name);
-              req.onsuccess = done; req.onerror = done; req.onblocked = done;
-            };
-            del('transformers-cache');
-            del('huggingface-cache');
-          });
-          generator = null; currentModelId = null;
-          setProgress(0);
-          setStatus('Caché eliminada. El modelo se descargará de nuevo.', 'ok');
-        } catch {
-          setStatus('No se pudo limpiar toda la caché.', 'warn');
-        }
-      });
-    }
-
-    // -------------------------------
-    // Inicialización
-    // -------------------------------
-    loadSettings();
-    bindUI();
-    const existing = loadHistory();
-    if (existing.length === 0) {
-      addMessage('assistant', 'Hola, soy tu asistente en el navegador. Todo ocurre de forma local. ¿En qué te ayudo hoy?');
-      saveHistory();
-    }
-
-    // Precargar si es posible (mejor UX)
-    (async () => {
-      try {
-        // Aviso sobre WebGPU si no está
-        if (!hasWebGPU() && els.backend.value === 'auto') {
-          setStatus('Sin WebGPU: usando WASM (más lento en primera carga).', 'warn');
-        }
-        await loadModelIfNeeded();
-      } catch (e) {
-        console.warn('Precarga fallida. Se intentará al enviar.', e);
-        setStatus('Listo (el modelo se cargará al enviar).');
-        setProgress(0);
-      }
-    })();
-  </script>
 </body>
 </html>
