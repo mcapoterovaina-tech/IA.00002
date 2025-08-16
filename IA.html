@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Chat IA — Página única (WebGPU/WASM)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root {
+      --bg: #0b0c10; --fg: #e6edf3; --muted: #9aa3ab; --accent: #6ab0ff; --panel: #0d1117; --border: #1e222a;
+      --ok: #2ecc71; --warn: #ffd166; --err: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: radial-gradient(1200px 600px at 70% -10%, #10131a, #0b0c10), var(--bg); color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(11,12,16,0.8); backdrop-filter: blur(6px); z-index: 10; }
+    h1 { font-size: 18px; margin: 0 0 4px 0; letter-spacing: 0.2px; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .container { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
+    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+    .panel { background: linear-gradient(180deg, #0f1219, #0d1117); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-top: 8px; }
+    select, input[type="number"], input[type="text"], input[type="range"], textarea, button {
+      width: 100%; background: #0a0d13; color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 14px;
+    }
+    textarea { resize: vertical; min-height: 84px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn { cursor: pointer; border: 1px solid #263041; background: #121722; transition: 0.15s; }
+    .btn:hover { border-color: #3a4b66; }
+    .btn.primary { background: #122235; border-color: #2e5a96; }
+    .btn.danger { background: #201014; border-color: #5b1e2a; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+    .status.ok { color: var(--ok); } .status.warn { color: var(--warn); } .status.err { color: var(--err); }
+    .bar { height: 6px; background: #0a0d13; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+    .bar > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #8bc8ff); transition: width 0.1s linear; }
+    .chat { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 230px); min-height: 320px; overflow: auto; padding-right: 6px; }
+    .msg { display: grid; grid-template-columns: 36px 1fr; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: #0d1117; }
+    .role { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font-weight: 600; font-size: 12px; color: #0b0c10; user-select: none; }
+    .role.user { background: #6ab0ff; }
+    .role.ai { background: #2ecc71; }
+    .bubble { white-space: pre-wrap; line-height: 1.45; }
+    .footer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #0a0d13; border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; font-size: 12px; color: var(--muted); text-align: center; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chat IA — cliente 100% navegador</h1>
+    <div class="sub">Una sola página. WebGPU si está disponible; WASM como respaldo. Sin servidores.</div>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <div class="row">
+        <div>
+          <label>Modelo (ID del repositorio compatible)
+            <select id="model">
+              <option value="Xenova/phi-2">Xenova/phi-2 (1.3B, general)</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Modelo personalizado (opcional)
+            <input type="text" id="custom_model" placeholder="p.ej. Xenova/NombreDelModelo" />
+          </label>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Backend
+            <select id="backend">
+              <option value="auto">Auto (recomendado)</option>
+              <option value="webgpu">WebGPU</option>
+              <option value="wasm">WASM</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Contexto máx. (mensajes)
+            <input type="number" id="max_history" min="2" max="32" value="8" />
+          </label>
+        </div>
+      </div>
+
+      <label>Rol del sistema (contexto)
+        <textarea id="system">Eres un asistente útil, directo y claro. Respondes en español, con pasos concretos y código cuando sea necesario.</textarea>
+      </label>
+
+      <div class="row">
+        <div>
+          <label>Temperatura <span id="temp_val" class="muted small">0.7</span>
+            <input type="range" min="0" max="2" step="0.05" id="temperature" value="0.7" />
+          </label>
+        </div>
+        <div>
+          <label>Top‑p <span id="topp_val" class="muted small">0.9</span>
+            <input type="range" min="0" max="1" step="0.01" id="top_p" value="0.9" />
+          </label>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Máx. tokens de respuesta
+            <input type="number" id="max_tokens" min="16" max="1024" value="256" />
+          </label>
+        </div>
+        <div class="split">
+          <button class="btn" id="clear_chat" style="margin-top: 30px;">Limpiar chat</button>
+          <button class="btn" id="clear_cache" style="margin-top: 30px;">Borrar caché</button>
+        </div>
+      </div>
+
+      <div class="status" id="status">Listo.</div>
+      <div class="bar"><i id="progress"></i></div>
+      <div class="hint">Primera carga: descarga y compila el modelo. Luego será más rápido por la caché local.</div>
+    </section>
+
+    <section class="panel">
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <div class="footer">
+        <textarea id="prompt" placeholder="Escribe tu mensaje y presiona Enviar (Ctrl/⌘+Enter)"></textarea>
+        <div style="display:grid; gap:10px;">
+          <button class="btn primary" id="send">Enviar</button>
+          <button class="btn danger" id="stop">Detener</button>
+          <div class="kbd">Ctrl/⌘+Enter para enviar</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    // ------------------------------
+    // Estado y utilidades de la UI
+    // ------------------------------
+    const els = {
+      model: document.getElementById('model'),
+      custom_model: document.getElementById('custom_model'),
+      backend: document.getElementById('backend'),
+      system: document.getElementById('system'),
+      temperature: document.getElementById('temperature'),
+      top_p: document.getElementById('top_p'),
+      temp_val: document.getElementById('temp_val'),
+      topp_val: document.getElementById('topp_val'),
+      max_tokens: document.getElementById('max_tokens'),
+      max_history: document.getElementById('max_history'),
+      status: document.getElementById('status'),
+      progress: document.getElementById('progress'),
+      chat: document.getElementById('chat'),
+      prompt: document.getElementById('prompt'),
+      send: document.getElementById('send'),
+      stop: document.getElementById('stop'),
+      clear_chat: document.getElementById('clear_chat'),
+      clear_cache: document.getElementById('clear_cache'),
+    };
+    const SETTINGS_KEY = 'webllm-settings-v2';
+    const HISTORY_KEY = 'webllm-history-v2';
+
+    function setStatus(text, kind = '') {
+      els.status.classList.remove('ok', 'warn', 'err');
+      if (kind) els.status.classList.add(kind);
+      els.status.textContent = text;
+    }
+    function setProgress(pct) {
+      const v = Math.max(0, Math.min(100, pct));
+      els.progress.style.width = v + '%';
+    }
+    function scrollChat() {
+      els.chat.scrollTop = els.chat.scrollHeight;
+    }
+
+    function addMessage(role, content) {
+      const wrap = document.createElement('div');
+      wrap.className = 'msg';
+      wrap.dataset.role = role;
+      const badge = document.createElement('div');
+      badge.className = 'role ' + (role === 'user' ? 'user' : 'ai');
+      badge.textContent = role === 'user' ? 'Tú' : 'IA';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = content;
+      wrap.appendChild(badge);
+      wrap.appendChild(bubble);
+      els.chat.appendChild(wrap);
+      scrollChat();
+      return bubble;
+    }
+
+    function saveHistory() {
+      const msgs = [...document.querySelectorAll('.msg')].map(node => {
+        return { role: node.dataset.role, content: node.querySelector('.bubble').textContent };
+      });
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(msgs));
+    }
+    function loadHistory() {
+      const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      for (const m of h) addMessage(m.role, m.content);
+      return h;
+    }
+
+    function saveSettings() {
+      const s = {
+        model: els.model.value,
+        custom_model: els.custom_model.value,
+        backend: els.backend.value,
+        system: els.system.value,
+        temperature: els.temperature.value,
+        top_p: els.top_p.value,
+        max_tokens: els.max_tokens.value,
+        max_history: els.max_history.value,
+      };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    }
+    function loadSettings() {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      for (const [k, v] of Object.entries(s)) {
+        if (k in els && v != null) els[k].value = v;
+      }
+      els.temp_val.textContent = els.temperature.value;
+      els.topp_val.textContent = els.top_p.value;
+    }
+
+    // -----------------------------------------
+    // Carga de runtime y modelo (Transformers)
+    // -----------------------------------------
+    let pipeline = null;
+    let generator = null;
+    let currentModelId = null;
+    let abortController = null;
+    let busy = false;
+
+    function hasWebGPU() {
+      return !!navigator.gpu;
+    }
+
+    function pickBackend() {
+      const pref = els.backend.value;
+      if (pref === 'webgpu') return 'webgpu';
+      if (pref === 'wasm') return 'wasm';
+      return hasWebGPU() ? 'webgpu' : 'wasm';
+    }
+
+    async function loadRuntime() {
+      if (pipeline) return;
+      setStatus('Cargando runtime…');
+      const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@3.0.0/dist/transformers.min.js');
+      pipeline = mod.pipeline;
+      setStatus('Runtime listo.', 'ok');
+    }
+
+    function resolvedModelId() {
+      const custom = els.custom_model.value.trim();
+      return custom || els.model.value;
+    }
+
+    async function loadModelIfNeeded() {
+      const modelId = resolvedModelId();
+      if (generator && currentModelId === modelId) return;
+
+      await loadRuntime();
+      setProgress(3);
+      setStatus(`Preparando modelo: ${modelId}`);
+
+      const backend = pickBackend();
+      // Nota: dejamos que la librería elija dtype óptimo. No forzamos cuantización para evitar incompatibilidades.
+      generator = await pipeline('text-generation', modelId, {
+        device: backend === 'webgpu' ? 'webgpu' : 'wasm',
+        progress_callback: (p) => {
+          if (p?.total) setProgress(5 + 90 * (p.loaded / p.total));
+          if (p?.status) setStatus(`${p.status}…`);
+        }
+      });
+
+      currentModelId = modelId;
+      setProgress(100);
+      setTimeout(() => setProgress(0), 600);
+      setStatus('Modelo listo.', 'ok');
+    }
+
+    // -------------------------------
+    // Construcción de prompt y chat
+    // -------------------------------
+    function buildPrompt(system, history, userMsg) {
+      const sys = system.trim() ? `<<SYSTEM>>\n${system.trim()}\n<</SYSTEM>>\n\n` : '';
+      const maxH = parseInt(els.max_history.value, 10);
+      const recent = history.slice(-maxH);
+      let conv = sys;
+      for (const m of recent) {
+        if (m.role === 'user') conv += `Usuario: ${m.content}\n`;
+        if (m.role === 'assistant') conv += `Asistente: ${m.content}\n`;
+      }
+      conv += `Usuario: ${userMsg}\nAsistente:`;
+      return conv;
+    }
+
+    // -------------------------------
+    // Generación con streaming
+    // -------------------------------
+    async function generate(userText) {
+      await loadModelIfNeeded();
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      const prompt = buildPrompt(els.system.value, history, userText);
+
+      abortController = new AbortController();
+      busy = true;
+      els.send.disabled = true;
+      els.stop.disabled = false;
+
+      let buffer = '';
+      const aiBubble = addMessage('assistant', '');
+
+      try {
+        const out = await generator(prompt, {
+          max_new_tokens: parseInt(els.max_tokens.value, 10),
+          temperature: parseFloat(els.temperature.value),
+          top_p: parseFloat(els.top_p.value),
+          do_sample: true,
+          return_full_text: false,
+          repetition_penalty: 1.1,
+          callback_function: (data) => {
+            if (abortController?.signal?.aborted) return;
+            if (data?.token?.text != null) {
+              buffer += data.token.text;
+              aiBubble.textContent = buffer;
+              scrollChat();
+            }
+          },
+          signal: abortController.signal,
+        });
+
+        // Si por cualquier motivo no hubo streaming, usar salida final
+        if (!buffer && Array.isArray(out) && out[0]?.generated_text) {
+          buffer = out[0].generated_text;
+          aiBubble.textContent = buffer;
+        }
+
+        setStatus('Listo.', 'ok');
+      } catch (e) {
+        if (abortController?.signal?.aborted) {
+          aiBubble.textContent = (buffer || '').trim();
+          setStatus('Generación detenida.', 'warn');
+        } else {
+          console.error(e);
+          aiBubble.textContent = (buffer ? buffer + '\n\n' : '') + '⚠️ Ocurrió un error durante la generación.';
+          setStatus('Error en generación.', 'err');
+        }
+      } finally {
+        abortController = null;
+        busy = false;
+        els.send.disabled = false;
+        els.stop.disabled = true;
+        saveHistory();
+      }
+    }
+
+    // -------------------------------
+    // Eventos de la interfaz
+    // -------------------------------
+    function bindUI() {
+      // Sincronizar valores visibles
+      els.temperature.addEventListener('input', () => { els.temp_val.textContent = els.temperature.value; saveSettings(); });
+      els.top_p.addEventListener('input', () => { els.topp_val.textContent = els.top_p.value; saveSettings(); });
+
+      // Ajustes persistentes
+      ['model','custom_model','backend','system','max_tokens','max_history'].forEach(id => {
+        els[id].addEventListener('change', saveSettings);
+        els[id].addEventListener('input', saveSettings);
+      });
+
+      // Cambio de modelo/backend fuerza recarga en la próxima generación
+      const forceReload = () => {
+        generator = null;
+        currentModelId = null;
+        setStatus('El modelo se recargará al próximo mensaje.');
+      };
+      els.model.addEventListener('change', forceReload);
+      els.custom_model.addEventListener('change', forceReload);
+      els.backend.addEventListener('change', forceReload);
+
+      // Enviar
+      els.send.addEventListener('click', async () => {
+        const text = els.prompt.value.trim();
+        if (!text || busy) return;
+        addMessage('user', text);
+        els.prompt.value = '';
+        saveHistory();
+        await generate(text);
+      });
+      els.prompt.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          els.send.click();
+        }
+      });
+
+      // Detener
+      els.stop.addEventListener('click', () => {
+        if (abortController) abortController.abort();
+      });
+      els.stop.disabled = true;
+
+      // Limpiar chat
+      els.clear_chat.addEventListener('click', () => {
+        if (busy) return;
+        els.chat.innerHTML = '';
+        localStorage.removeItem(HISTORY_KEY);
+        setStatus('Chat reiniciado.', 'ok');
+      });
+
+      // Borrar caché de modelos
+      els.clear_cache.addEventListener('click', async () => {
+        if (busy) return;
+        setStatus('Eliminando caché local…');
+        try {
+          // Caches del Service Worker (si las hubiera)
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+          // IndexedDB usada por la librería
+          await new Promise((resolve) => {
+            let pending = 2;
+            const done = () => (--pending === 0) && resolve();
+            const del = (name) => {
+              const req = indexedDB.deleteDatabase(name);
+              req.onsuccess = done; req.onerror = done; req.onblocked = done;
+            };
+            del('transformers-cache');
+            del('huggingface-cache');
+          });
+          generator = null; currentModelId = null;
+          setProgress(0);
+          setStatus('Caché eliminada. El modelo se descargará de nuevo.', 'ok');
+        } catch {
+          setStatus('No se pudo limpiar toda la caché.', 'warn');
+        }
+      });
+    }
+
+    // -------------------------------
+    // Inicialización
+    // -------------------------------
+    loadSettings();
+    bindUI();
+    const existing = loadHistory();
+    if (existing.length === 0) {
+      addMessage('assistant', 'Hola, soy tu asistente en el navegador. Todo ocurre de forma local. ¿En qué te ayudo hoy?');
+      saveHistory();
+    }
+
+    // Precargar si es posible (mejor UX)
+    (async () => {
+      try {
+        // Aviso sobre WebGPU si no está
+        if (!hasWebGPU() && els.backend.value === 'auto') {
+          setStatus('Sin WebGPU: usando WASM (más lento en primera carga).', 'warn');
+        }
+        await loadModelIfNeeded();
+      } catch (e) {
+        console.warn('Precarga fallida. Se intentará al enviar.', e);
+        setStatus('Listo (el modelo se cargará al enviar).');
+        setProgress(0);
+      }
+    })();
+  </script>
+</body>
+</html>
